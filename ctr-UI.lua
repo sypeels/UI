@@ -10970,7 +10970,7 @@ do
                     SettingsSection:Label({ Name = "UI Bind" }):Keybind({
                         Flag = "UIBind",
                         Mode = "Toggle",
-                        Default = Enum.KeyCode.RightShift,
+                        Default = Enum.KeyCode.RightControl,
                         Callback = function(Value)
                             Library.MenuKeybind = Flags["UIBind"].Key
                         end
