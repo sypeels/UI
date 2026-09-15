@@ -106,7 +106,6 @@ local Library = {
     LayoutRegistry = {},
     SettingsWidgets = {},
     ActiveConfirmDialog = nil,
-    MouseCursor = nil,
     MouseStateBeforeOpen = nil,
 
     Holder = nil,
@@ -409,6 +408,11 @@ do
         local NewTween = Library:Tween({
             [Property] = Visibility and OldTransparency or 1
         }, nil, Object)
+
+        if not NewTween then
+            Self.Instance.Visible = Visibility
+            return
+        end
 
         Library:Connect(NewTween.Completed, function()
             if not Visibility then
@@ -826,17 +830,13 @@ do
                 MouseIconEnabled = UserInputService.MouseIconEnabled,
             }
             UserInputService.MouseBehavior = Enum.MouseBehavior.Default
-            UserInputService.MouseIconEnabled = false
+            UserInputService.MouseIconEnabled = true
         elseif Library.MouseStateBeforeOpen then
             UserInputService.MouseBehavior = Library.MouseStateBeforeOpen.MouseBehavior or Enum.MouseBehavior.Default
             UserInputService.MouseIconEnabled = Library.MouseStateBeforeOpen.MouseIconEnabled ~= false
             Library.MouseStateBeforeOpen = nil
         else
             UserInputService.MouseIconEnabled = true
-        end
-
-        if Library.MouseCursor and Library.MouseCursor.Instance then
-            Library.MouseCursor.Instance.Visible = Library.WindowOpenState
         end
 
         if not Library.WindowOpenState then
@@ -1377,16 +1377,6 @@ do
         ZIndex = 0
     })
 
-    Library.MouseCursor = Library:Create("ImageLabel", {
-        Parent = Library.Holder.Instance,
-        Name = "\0",
-        Visible = false,
-        BackgroundTransparency = 1,
-        Image = "http://www.roblox.com/asset/?id=5545698398",
-        Size = UDim2.new(0, 36, 0, 36),
-        ZIndex = 10000
-    })
-
     Library.UnusedHolder = Library:Create("ScreenGui", {
         Parent = gethui(),
         Name = "\0",
@@ -1424,16 +1414,6 @@ do
         PaddingRight = UDim.new(0, 8),
         PaddingLeft = UDim.new(0, 8)
     })
-
-    Library:Connect(RunService.RenderStepped, function()
-        local MouseCursor = Library.MouseCursor
-        if not (MouseCursor and MouseCursor.Instance and Library.WindowOpenState) then
-            return
-        end
-
-        local MouseLocation = UserInputService:GetMouseLocation()
-        MouseCursor.Instance.Position = UDim2.new(0, MouseLocation.X - 18, 0, MouseLocation.Y - 18)
-    end)
 
     do
         Library.CreateColorpicker = function(Self, Data)
@@ -3180,6 +3160,9 @@ do
             local Preview = {
                 Player = nil
             }
+            local LayoutDefaults
+            local LayoutItems
+            local LayoutPlacement = {}
 
             local AlignPreviewToWindow = function(Frame)
                 local MainWindow = Library.MainWindowFrame
@@ -3302,19 +3285,13 @@ do
                     Position = UDim2.new(0.24, 0, 0.08, 0),
                     Size = UDim2.new(0.52, 0, 0.84, 0),
                     BorderSizePixel = 0,
+                    BackgroundColor3 = Library.Theme["Accent"],
                     ZIndex = 1000,
                     Visible = true
                 })
 
-                Library:Create("UIStroke", {
-                    Name = "\0",
-                    Parent = Items["ESPBox"].Instance,
-                    Color = Library.Theme["Accent"],
-                    Thickness = 1,
-                    ApplyStrokeMode = Enum.ApplyStrokeMode.Border,
-                    LineJoinMode = Enum.LineJoinMode.Miter
-                }):AddToTheme({ Color = 'Accent' })
-
+                Items["ESPBoxSegments"] = {}
+                Items["ESPShadowSegments"] = {}
                 local CornerSegments = {
                     { Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(0.25, 0, 0, 1) },
                     { Position = UDim2.new(0, 0, 0, 0), Size = UDim2.new(0, 1, 0.2, 0) },
@@ -3327,7 +3304,7 @@ do
                 }
 
                 for Index, Segment in ipairs(CornerSegments) do
-                    Library:Create("Frame", {
+                    local SegmentFrame = Library:Create("Frame", {
                         Name = "\0",
                         Parent = Items["ESPBox"].Instance,
                         Position = Segment.Position,
@@ -3336,7 +3313,119 @@ do
                         BackgroundColor3 = Library.Theme["Accent"],
                         ZIndex = 1001
                     }):AddToTheme({ BackgroundColor3 = 'Accent' })
+                    table.insert(Items["ESPBoxSegments"], SegmentFrame.Instance)
+
+                    local ShadowFrame = Library:Create("Frame", {
+                        Name = "\0",
+                        Parent = Items["ESPBox"].Instance,
+                        Position = UDim2.new(Segment.Position.X.Scale, Segment.Position.X.Offset + 2,
+                            Segment.Position.Y.Scale, Segment.Position.Y.Offset + 2),
+                        Size = Segment.Size,
+                        BorderSizePixel = 0,
+                        BackgroundColor3 = Color3.new(0, 0, 0),
+                        ZIndex = 1000
+                    })
+                    table.insert(Items["ESPShadowSegments"], ShadowFrame.Instance)
                 end
+
+                Items["ESPFullBox"] = Library:Create("Frame", {
+                    Name = "\0",
+                    Parent = Items["ESPBox"].Instance,
+                    BackgroundTransparency = 1,
+                    Size = UDim2.new(1, 0, 1, 0),
+                    BorderSizePixel = 0,
+                    ZIndex = 1000,
+                    Visible = false
+                })
+
+                Library:Create("UIStroke", {
+                    Name = "\0",
+                    Parent = Items["ESPFullBox"].Instance,
+                    Color = Library.Theme["Accent"],
+                    Thickness = 1
+                }):AddToTheme({ Color = 'Accent' })
+
+                Items["ESPHealth"] = Library:Create("Frame", {
+                    Name = "\0",
+                    Parent = Items["ESPBox"].Instance,
+                    Position = UDim2.new(0, -6, 0, 0),
+                    Size = UDim2.new(0, 3, 1, 0),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = Color3.new(0, 0, 0),
+                    ZIndex = 1001,
+                    Visible = false
+                })
+
+                Items["ESPHealthFill"] = Library:Create("Frame", {
+                    Name = "\0",
+                    Parent = Items["ESPHealth"].Instance,
+                    AnchorPoint = Vector2.new(0, 1),
+                    Position = UDim2.new(0, 0, 1, 0),
+                    Size = UDim2.new(1, 0, 0.75, 0),
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = Color3.fromRGB(0, 255, 0),
+                    ZIndex = 1002
+                })
+
+                Items["ESPName"] = Library:Create("TextLabel", {
+                    Name = "\0",
+                    Parent = Items["ESPBox"].Instance,
+                    BackgroundTransparency = 1,
+                    AnchorPoint = Vector2.new(0.5, 1),
+                    Position = UDim2.new(0.5, 0, 0, -3),
+                    Size = UDim2.new(1, 0, 0, 14),
+                    Text = "PreviewPlayer",
+                    FontFace = Library.Font,
+                    TextSize = Library.FontSize,
+                    TextColor3 = Library.Theme["Accent"],
+                    ZIndex = 1001,
+                    Visible = false
+                }):AddToTheme({ TextColor3 = 'Accent' })
+
+                Items["ESPDistance"] = Library:Create("TextLabel", {
+                    Name = "\0",
+                    Parent = Items["ESPBox"].Instance,
+                    BackgroundTransparency = 1,
+                    AnchorPoint = Vector2.new(0.5, 0),
+                    Position = UDim2.new(0.5, 0, 1, 3),
+                    Size = UDim2.new(1, 0, 0, 14),
+                    Text = "[25m]",
+                    FontFace = Library.Font,
+                    TextSize = Library.FontSize,
+                    TextColor3 = Library.Theme["Accent"],
+                    ZIndex = 1001,
+                    Visible = false
+                }):AddToTheme({ TextColor3 = 'Accent' })
+
+                Items["ESPHealthText"] = Library:Create("TextLabel", {
+                    Name = "\0",
+                    Parent = Items["ESPBox"].Instance,
+                    BackgroundTransparency = 1,
+                    AnchorPoint = Vector2.new(0.5, 0),
+                    Position = UDim2.new(0.5, 0, 1, 18),
+                    Size = UDim2.new(1, 0, 0, 14),
+                    Text = "75/100 HP",
+                    FontFace = Library.Font,
+                    TextSize = Library.FontSize,
+                    TextColor3 = Library.Theme["Accent"],
+                    ZIndex = 1001,
+                    Visible = false
+                }):AddToTheme({ TextColor3 = 'Accent' })
+
+                Items["ESPState"] = Library:Create("TextLabel", {
+                    Name = "\0",
+                    Parent = Items["ESPBox"].Instance,
+                    BackgroundTransparency = 1,
+                    AnchorPoint = Vector2.new(0.5, 0),
+                    Position = UDim2.new(0.5, 0, 1, 33),
+                    Size = UDim2.new(1, 0, 0, 14),
+                    Text = "Idle",
+                    FontFace = Library.Font,
+                    TextSize = Library.FontSize,
+                    TextColor3 = Library.Theme["Accent"],
+                    ZIndex = 1001,
+                    Visible = false
+                }):AddToTheme({ TextColor3 = 'Accent' })
             end
 
             AlignPreviewToWindow(Items["ESPPreview"].Instance)
@@ -3353,6 +3442,182 @@ do
                 ApplyVisibility(Library.WindowOpenState)
             end
 
+            function Preview:SetBoxVisibility(Bool)
+                Items["ESPBox"].Instance.Visible = Bool
+            end
+
+            function Preview:SetBoxColor(Color)
+                for _, Segment in ipairs(Items["ESPBoxSegments"]) do
+                    Segment.BackgroundColor3 = Color
+                end
+                Items["ESPFullBox"].Instance:FindFirstChildOfClass("UIStroke").Color = Color
+                Items["ESPName"].Instance.TextColor3 = Color
+                Items["ESPDistance"].Instance.TextColor3 = Color
+            end
+
+            function Preview:SetBoxTransparency(Value)
+                for _, Segment in ipairs(Items["ESPBoxSegments"]) do
+                    Segment.BackgroundTransparency = Value
+                end
+            end
+
+            function Preview:SetBoxThickness(Value)
+                for _, Segment in ipairs(Items["ESPBoxSegments"]) do
+                    if Segment.Size.Y.Offset == 1 then
+                        Segment.Size = UDim2.new(Segment.Size.X.Scale, Segment.Size.X.Offset, 0, Value)
+                    else
+                        Segment.Size = UDim2.new(0, Value, Segment.Size.Y.Scale, Segment.Size.Y.Offset)
+                    end
+                end
+            end
+
+            function Preview:SetBoxStyle(Style)
+                local IsFull = Style == "Full"
+                Items["ESPFullBox"].Instance.Visible = IsFull
+                for _, Segment in ipairs(Items["ESPBoxSegments"]) do
+                    Segment.Visible = not IsFull
+                end
+            end
+
+            function Preview:SetShadowVisibility(Bool)
+                for _, Segment in ipairs(Items["ESPShadowSegments"]) do
+                    Segment.Visible = Bool
+                end
+            end
+
+            function Preview:SetHealthVisibility(Bool)
+                Items["ESPHealth"].Instance.Visible = Bool
+                if LayoutPlacement.Health then
+                    Preview:SetElementPosition("Health", LayoutPlacement.Health)
+                end
+            end
+
+            function Preview:SetNameVisibility(Bool)
+                Items["ESPName"].Instance.Visible = Bool
+                if LayoutPlacement.Name then
+                    Preview:SetElementPosition("Name", LayoutPlacement.Name)
+                end
+
+            end
+
+            function Preview:SetDistanceVisibility(Bool)
+                Items["ESPDistance"].Instance.Visible = Bool
+                if LayoutPlacement.Distance then
+                    Preview:SetElementPosition("Distance", LayoutPlacement.Distance)
+                end
+            end
+
+            function Preview:SetEditMode(Bool)
+                return
+            end
+
+            function Preview:SetElementPosition(Name, Position)
+                local Item = LayoutItems[Name]
+                if not Item then
+                    return
+                end
+
+                LayoutPlacement[Name] = Position
+                local SideItems = { Top = {}, Bottom = {}, Left = {}, Right = {} }
+                for ItemName, Placement in pairs(LayoutPlacement) do
+                    local PlacementItems = SideItems[Placement]
+                    if PlacementItems and LayoutItems[ItemName].Visible then
+                        table.insert(PlacementItems, ItemName)
+                    end
+                end
+
+                local Order = { "Name", "Distance", "HealthText", "State" }
+                for _, Side in ipairs({ "Top", "Bottom", "Left", "Right" }) do
+                    local Slot = 0
+                    for _, ItemName in ipairs(Order) do
+                        if table.find(SideItems[Side], ItemName) then
+                            Slot += 1
+                            local Label = LayoutItems[ItemName]
+                            local Offset = (Slot - 1) * 16 + 3
+                            if Side == "Top" then
+                                Label.AnchorPoint = Vector2.new(0.5, 1)
+                                Label.Size = UDim2.new(1, 0, 0, 14)
+                                Label.Position = UDim2.new(0.5, 0, 0, -Offset)
+                            elseif Side == "Bottom" then
+                                Label.AnchorPoint = Vector2.new(0.5, 0)
+                                Label.Size = UDim2.new(1, 0, 0, 14)
+                                Label.Position = UDim2.new(0.5, 0, 1, Offset)
+                            elseif Side == "Left" then
+                                Label.AnchorPoint = Vector2.new(1, 0)
+                                Label.Size = UDim2.new(0, 80, 0, 14)
+                                Label.TextXAlignment = Enum.TextXAlignment.Right
+                                Label.Position = UDim2.new(0, -4, 0, Offset)
+                            else
+                                Label.AnchorPoint = Vector2.new(0, 0)
+                                Label.Size = UDim2.new(0, 80, 0, 14)
+                                Label.TextXAlignment = Enum.TextXAlignment.Left
+                                Label.Position = UDim2.new(1, 4, 0, Offset)
+                            end
+                        end
+                    end
+                end
+
+                if Name == "Health" then
+                    Item.Position = Position == "Right"
+                        and UDim2.new(1, 3, 0, 0)
+                        or UDim2.new(0, -6, 0, 0)
+                end
+            end
+
+            function Preview:ResetLayout()
+                for Name, Item in pairs(LayoutItems) do
+                    Item.Position = LayoutDefaults[Name]
+                end
+            end
+
+            function Preview:GetLayout()
+                local Layout = {}
+                for Name, Item in pairs(LayoutItems) do
+                    Layout[Name] = Item.Position
+                end
+                return Layout
+            end
+
+            function Preview:SetFillVisibility(Bool)
+                Items["ESPBox"].Instance.BackgroundTransparency = Bool and 0.85 or 1
+            end
+
+            function Preview:SetFillColor(Color)
+                Items["ESPBox"].Instance.BackgroundColor3 = Color
+            end
+
+            function Preview:SetHealthColor(Color)
+                Items["ESPHealthFill"].Instance.BackgroundColor3 = Color
+                Items["ESPHealthText"].Instance.TextColor3 = Color
+            end
+
+            function Preview:SetLabelColor(Name, Color)
+                local Item = Items["ESP" .. Name]
+                if Item and Item.Instance then
+                    Item.Instance.TextColor3 = Color
+                end
+            end
+
+            function Preview:SetHealthTextVisibility(Bool)
+                Items["ESPHealthText"].Instance.Visible = Bool
+                if LayoutPlacement.HealthText then
+                    Preview:SetElementPosition("HealthText", LayoutPlacement.HealthText)
+                end
+            end
+
+            function Preview:SetStateVisibility(Bool)
+                Items["ESPState"].Instance.Visible = Bool
+                if LayoutPlacement.State then
+                    Preview:SetElementPosition("State", LayoutPlacement.State)
+                end
+            end
+
+            function Preview:SetNameMode(Mode)
+                Items["ESPName"].Instance.Text = Mode == "Username" and "PreviewUser"
+                    or Mode == "Both" and "PreviewPlayer (PreviewUser)"
+                    or "PreviewPlayer"
+            end
+
             function Preview:SetText(Text)
                 Items["Text"].Instance.Text = Text
             end
@@ -3367,7 +3632,29 @@ do
             local PreviewModel = nil
             local RenderObjects = table.create(25)
             local Connections = {}
-
+            local LayoutConnections = {}
+            LayoutDefaults = {
+                Box = Items["ESPBox"].Instance.Position,
+                Name = Items["ESPName"].Instance.Position,
+                Health = Items["ESPHealth"].Instance.Position,
+                HealthText = Items["ESPHealthText"].Instance.Position,
+                Distance = Items["ESPDistance"].Instance.Position,
+                State = Items["ESPState"].Instance.Position
+            }
+            LayoutItems = {
+                Name = Items["ESPName"].Instance,
+                Health = Items["ESPHealth"].Instance,
+                HealthText = Items["ESPHealthText"].Instance,
+                Distance = Items["ESPDistance"].Instance,
+                State = Items["ESPState"].Instance
+            }
+            LayoutPlacement = {
+                Name = "Top",
+                Health = "Left",
+                HealthText = "Bottom",
+                Distance = "Bottom",
+                State = "Bottom"
+            }
             local OFFSET = CFrame.new(0, 2.5, -8.5)
 
             local ValidClasses = {
@@ -4269,6 +4556,17 @@ do
                     CornerRadius = UDim.new(1, 0)
                 })
 
+                Items["Heading"] = Library:Create("Frame", {
+                    Name = "\0",
+                    Parent = Items["RadarBounds"].Instance,
+                    AnchorPoint = Vector2.new(0.5, 1),
+                    Position = UDim2.new(0.5, 0, 0.5, -3),
+                    Size = UDim2.new(0, 2, 0, 22),
+                    ZIndex = 3,
+                    BorderSizePixel = 0,
+                    BackgroundColor3 = Library.Theme["Accent"]
+                }):AddToTheme({ BackgroundColor3 = "Accent" })
+
                 for _, LineData in next, {
                     { Name = "CrossX",     Size = UDim2.new(1, 0, 0, 1), Position = UDim2.new(0, 0, 0.5, 0) },
                     { Name = "CrossY",     Size = UDim2.new(0, 1, 1, 0), Position = UDim2.new(0.5, 0, 0, 0) },
@@ -4361,11 +4659,15 @@ do
             end
 
             function Radar:SetSweep(Angle)
-                return Angle
+                Items["Heading"].Instance.Rotation = tonumber(Angle) or 0
             end
 
             function Radar:SetHeading(Angle)
-                return Angle
+                Items["Heading"].Instance.Rotation = tonumber(Angle) or 0
+            end
+
+            function Radar:SetHeadingVisibility(Bool)
+                Items["Heading"].Instance.Visible = Bool and true or false
             end
 
             function Radar:Upsert(Key, Data)
@@ -4375,6 +4677,7 @@ do
                 local Size = Data and Data.Size
                 local Visible = Data and Data.Visible
                 local Transparency = Data and Data.Transparency
+                local Color = Data and Data.Color
 
                 if typeof(Position) == "Vector2" then
                     Dot.Position = UDim2.new(0, Position.X, 0, Position.Y)
@@ -4388,6 +4691,10 @@ do
                     Dot.BackgroundTransparency = Transparency
                 else
                     Dot.BackgroundTransparency = 0
+                end
+
+                if typeof(Color) == "Color3" then
+                    Dot.BackgroundColor3 = Color
                 end
 
                 Dot.Visible = Visible ~= false
@@ -10704,6 +11011,73 @@ do
                         Callback = function(Value)
                             Library.Animation.Time = Value
                         end
+                    })
+
+                    local WidgetShowcaseSection = OtherSubPage:Section({
+                        Name = "Widget Showcase",
+                        Side = 1
+                    })
+
+                    local WidgetShowcaseLabel = WidgetShowcaseSection:Label({
+                        Name = "Label widget",
+                        Tooltip = "Example label with attached color and keybind widgets."
+                    })
+
+                    WidgetShowcaseLabel:Colorpicker({
+                        Flag = "WidgetShowcaseColor",
+                        Default = Library.Theme["Accent"],
+                        Callback = function(Value)
+                            Library:Notification("Showcase color updated", 2, Value)
+                        end
+                    })
+
+                    WidgetShowcaseLabel:Keybind({
+                        Flag = "WidgetShowcaseKeybind",
+                        Mode = "Toggle",
+                        Default = Enum.KeyCode.Unknown,
+                        Callback = function()
+                            Library:Notification("Showcase keybind pressed", 2, Library.Theme["Accent"])
+                        end
+                    })
+
+                    WidgetShowcaseSection:Toggle({
+                        Name = "Toggle widget",
+                        Flag = "WidgetShowcaseToggle",
+                        Default = false,
+                        Tooltip = "Example toggle control."
+                    })
+
+                    WidgetShowcaseSection:Button({
+                        Name = "Button widget",
+                        Tooltip = "Example button control.",
+                        Callback = function()
+                            Library:Notification("Showcase button pressed", 2, Library.Theme["Accent"])
+                        end
+                    })
+
+                    WidgetShowcaseSection:Slider({
+                        Name = "Slider widget",
+                        Flag = "WidgetShowcaseSlider",
+                        Default = 50,
+                        Min = 0,
+                        Max = 100,
+                        Suffix = "%",
+                        Tooltip = "Example slider control."
+                    })
+
+                    WidgetShowcaseSection:Dropdown({
+                        Name = "Dropdown widget",
+                        Flag = "WidgetShowcaseDropdown",
+                        Items = { "Option A", "Option B", "Option C" },
+                        Default = "Option A",
+                        Tooltip = "Example dropdown control."
+                    })
+
+                    WidgetShowcaseSection:Textbox({
+                        Name = "Textbox widget",
+                        Flag = "WidgetShowcaseTextbox",
+                        Placeholder = "Type here...",
+                        Tooltip = "Example textbox control."
                     })
                 end
 
